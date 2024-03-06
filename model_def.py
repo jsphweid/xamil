@@ -18,6 +18,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 import consts
+from tokens import Tokens
 from interpreter import Interpreter
 
 
@@ -158,7 +159,9 @@ class GPTConfig:
     n_head: int
     n_embd: int
     dropout: float = 0.0
-    bias: bool = True  # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
+    bias: bool = (
+        True  # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
+    )
 
 
 class GPT(nn.Module):
@@ -360,7 +363,7 @@ class GPT(nn.Module):
         idx,
         max_new_tokens,
         validator=None,
-        temperature=1.0,
+        temperature=1,
         top_k=None,
         interpreter: Optional[Interpreter] = None,
     ):
@@ -411,11 +414,10 @@ class GPT(nn.Module):
 
 
 def get_model_and_config():
-    with open(f"{consts.TRAINING_DATA_ROOT}/stoi.json", "r") as f:
-        data = f.read()
-
+    tokens_path = f"{consts.TRAINING_DATA_ROOT}/tokens.json"
+    num_tokens = Tokens.Load(tokens_path).Size()
     # "padded up to nearest multiple of 64 for efficiency" -Karpathy
-    num_tokens = ((len(json.loads(data)) // 64) * 64) + 64
+    num_tokens = ((num_tokens // 64) * 64) + 64
 
     config = GPTConfig(
         bias=False,

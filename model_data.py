@@ -5,15 +5,13 @@
 # https://opensource.org/licenses/MIT.
 
 from enum import Enum
-import json
 import struct
 import torch
 from enum import Enum
 import torch
+import sbiff
 
-import util
 import consts
-from vocab import Vocab
 
 
 class Split(Enum):
@@ -21,44 +19,22 @@ class Split(Enum):
     Val = "Val"
 
 
-def _read_ints(data, bytes_start, num_bytes):
-    sl = data[bytes_start : bytes_start + num_bytes]
-    return list(struct.unpack(">" + "H" * (len(sl) // struct.calcsize("H")), sl))
-
-
 class ModelDataProvider:
     """Provides batches of data for training and validation."""
 
     def __init__(self):
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        with open(consts.TRAINING_DATA_NUMS, "rb") as f:
-            self.byte_tokens = f.read()
-        split = int(0.9 * len(self.byte_tokens))
+        self.all_ints = sbiff.ReadAllInts(consts.TRAINING_DATA_BPE_NUMS)
+        split = int(0.9 * len(self.all_ints))
         split = split - (split & 1)  # Make sure it splits on an even number.
-        self._train_bytes_segments = self.byte_tokens[:split]
-        self._val_bytes_segments = self.byte_tokens[split:]
+        self._train_ints = self.all_ints[:split]
+        self._val_ints = self.all_ints[split:]
 
     def get_batch(self, split: Split, block_size: int, batch_size: int):
-        data = (
-            self._train_bytes_segments
-            if split == Split.Train
-            else self._val_bytes_segments
-        )
-
-        # TODO: This is unnecessarily complicated. Consider refactoring eventually.
-        # Keep in mind we're reading a byte array here and each number is 2 bytes.
-        # "// 2" to correctly subtract with block_size isn't defined in bytes.
-        # "* 2" to adjust back into byte indices.
-        # "- 2" to offset by one number (2 bytes) to associate with the Y properly.
-        ix = (
-            torch.randint(low=1, high=(len(data) // 2) - block_size, size=(batch_size,))
-            * 2
-        ) - 2
-        x = torch.stack([torch.tensor(_read_ints(data, i, block_size * 2)) for i in ix])
-        y = torch.stack(
-            [torch.tensor(_read_ints(data, i + 2, block_size * 2)) for i in ix]
-        )
+        data = self._train_ints if split == Split.Train else self._val_ints
+        ix = torch.randint(low=1, high=len(data) - block_size, size=(batch_size,))
+        x = torch.stack([torch.tensor(data[i : i + block_size]) for i in ix])
+        y = torch.stack([torch.tensor(data[i + 1 : i + block_size + 1]) for i in ix])
 
         if self._device == "cuda":
             # pin arrays x,y, which allows us to move them to GPU asynchronously non_blocking=True)
