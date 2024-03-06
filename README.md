@@ -16,7 +16,10 @@ arbitrarily large size. In an experiment I went to 20k tokens which reduced my
 overall training set by more than 10x. This also has the benefit of making my
 context length effectively 10x longer and inference 10x faster.
 
-This is still highly experimental and I didn't do a thorough analysis.
+This is still highly experimental and I didn't do a thorough analysis. But the
+validation loss (NLL) went from 10 to about 1.8 (i.e. from 1/20000 random
+guessing to 1/6 which is some decent learning). And the results of the
+generated MusicXML look coherent.
 
 
 ## Use
