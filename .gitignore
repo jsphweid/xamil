@@ -1,0 +1,4 @@
+local
+training_data_out
+model_data_out
+__pycache__/

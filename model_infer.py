@@ -6,27 +6,22 @@
 
 import os
 import torch
+import random
 
 import consts
 from validator import Validator
 from interpreter import Interpreter
-from vocab import Vocab
+from tokens import Tokens
 from model_def import get_model_and_config
 
 
-vocab = Vocab()
+tokens = Tokens.Load(os.path.join(consts.TRAINING_DATA_ROOT, "tokens.json"))
 
 
-# Find token containing score-partwise because this must be the start token.
-start = None
-for k, v in vocab.stoi.items():
-    if "score-partwise" in k:
-        start = v
-        break
-assert start is not None
-
-validator = Validator(start, vocab)
-interpreter = Interpreter(start, vocab)
+starts = tokens.GetStartsOrDie()
+start = random.choice(starts)
+validator = Validator(start, tokens)
+interpreter = Interpreter(start, tokens)
 ckpt_path = os.path.join(consts.MODEL_DATA_ROOT, "ckpt.pt")
 checkpoint = torch.load(
     ckpt_path, map_location="cuda" if torch.cuda.is_available() else "cpu"

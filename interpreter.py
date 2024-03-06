@@ -6,7 +6,7 @@
 
 import sys
 
-from vocab import Vocab
+from tokens import Tokens
 import consts
 
 
@@ -42,11 +42,11 @@ class Interpreter:
     def __init__(
         self,
         start_token: int,
-        vocab: Vocab,
+        tokens: Tokens,
         live_file_out: str = f"{consts.MISC_FILES_ROOT}/live.xml",
     ):
         self.live_file_out = live_file_out
-        self.vocab = vocab
+        self.tokens = tokens
         self.start_token = start_token
         self.started = False
         self.prev_interpreted_token = start_token
@@ -102,7 +102,7 @@ class Interpreter:
 
         return s
 
-    def live_interpret(self, tok_i: int) -> None:
+    def live_interpret(self, super_token: int) -> None:
         """Writes to stdout and updates the file at `self.live_file_out` if it is not None.
 
         Args:
@@ -114,26 +114,28 @@ class Interpreter:
             self.started = True
             self.live_interpret(self.start_token)
 
-        token = self.vocab.itos[tok_i]
-        if Vocab.is_tag(token):
-            indent = self.scaled_indents[token]
+        tokens = self.tokens.Translate(super_token)
+        for token in tokens:
+            token_str = self.tokens.GetStr(token)
+            if self.tokens.TokenIsTag(token):
+                indent = self.scaled_indents[token_str]
 
-            # If we're not going deeper, dump everything that's too deep.
-            first_done = False
-            while self.stack and indent <= self.stack[-1][1]:
-                prev_token, prev_indent = self.stack.pop()
-                close_tag = self.vocab.i_to_close_tag[prev_token]
-                if first_done:
-                    self._std_out(" " * prev_indent)
-                self._std_out(close_tag)
-                self._std_out("\n")
-                first_done = True
+                # If we're not going deeper, dump everything that's too deep.
+                first_done = False
+                while self.stack and indent <= self.stack[-1][1]:
+                    prev_token, prev_indent = self.stack.pop()
+                    close_tag_str = self.tokens.GetCloseTagStr(prev_token)
+                    if first_done:
+                        self._std_out(" " * prev_indent)
+                    self._std_out(close_tag_str)
+                    self._std_out("\n")
+                    first_done = True
 
-            self.stack.append((tok_i, indent))
-            if not first_done:
-                self._std_out("\n")
-            self._std_out(" " * indent)
+                self.stack.append((token, indent))
+                if not first_done:
+                    self._std_out("\n")
+                self._std_out(" " * indent)
 
-        self._std_out(self._rewrite(token))
+            self._std_out(self._rewrite(token_str))
 
-        self.prev_interpreted_token = tok_i
+            self.prev_interpreted_token = token

@@ -4,9 +4,11 @@
 # license that can be found in the LICENSE file or at
 # https://opensource.org/licenses/MIT.
 
+from contextlib import contextmanager
 import gzip
 import logging
 import os
+import tempfile
 from typing import List, Optional, Union, Tuple
 import xml.etree.ElementTree as ET
 import math
@@ -15,19 +17,19 @@ import shutil
 import consts
 
 
-def ensure_dir_exists(path: str):
+def EnsureDirExists(path: str):
     os.makedirs(path, exist_ok=True)
 
 
-def clear_if_exists(path: str):
+def ClearIfExists(path: str):
     if os.path.isfile(path):
         os.remove(path)
     elif os.path.isdir(path):
         shutil.rmtree(path)
-        ensure_dir_exists(path)
+        EnsureDirExists(path)
 
 
-def get_all_files_in_directory(directory, extensions: Union[Tuple[str], str] = tuple()):
+def GetAllFilesInDirectory(directory, extensions: Union[Tuple[str], str] = tuple()):
     paths = []
     extensions = extensions if type(extensions) is tuple else (extensions,)
     for root, _, filenames in os.walk(directory):
@@ -39,7 +41,7 @@ def get_all_files_in_directory(directory, extensions: Union[Tuple[str], str] = t
     return paths
 
 
-def read_file_as_text(path: str) -> Optional[str]:
+def ReadFileAsText(path: str) -> Optional[str]:
     try:
         if path.endswith(".gz"):
             with gzip.open(path, "rt") as f:
@@ -53,8 +55,8 @@ def read_file_as_text(path: str) -> Optional[str]:
         return ""
 
 
-def parse_xml(path: str) -> Optional[ET.Element]:
-    xml = read_file_as_text(path)
+def ParseXml(path: str) -> Optional[ET.Element]:
+    xml = ReadFileAsText(path)
     try:
         return ET.fromstring(xml)
     except ET.ParseError as e:
@@ -62,7 +64,7 @@ def parse_xml(path: str) -> Optional[ET.Element]:
         return None
 
 
-def get_tokens_from_xml_root(root) -> List[str]:
+def GetTokensFromXmlRoot(root) -> List[str]:
     if root is None:
         return []
 
@@ -74,18 +76,18 @@ def get_tokens_from_xml_root(root) -> List[str]:
 
         # Remove attributes we don't care about.
         for name, _ in list(parent.attrib.items()):
-            if not keep_attribute(name):
+            if not KeepAttribute(name):
                 del parent.attrib[name]
 
         # Get tokens for this node.
-        tokens.extend(get_tokens(parent))
+        tokens.extend(GetTokens(parent))
 
         # Find children while removing certain ones we don't care about.
         # Don't remove these while iterating otherwise the iterator will break.
         # Iterate backwards to make sure we go left to right.
         children_to_remove = []
         for child in reversed(list(iter(parent))):
-            if keep_element(child.tag):
+            if KeepElement(child.tag):
                 stack.append(child)
             else:
                 children_to_remove.append(child)
@@ -95,15 +97,15 @@ def get_tokens_from_xml_root(root) -> List[str]:
     return tokens
 
 
-def get_unique_tokens(path: str):
-    return set(get_tokens_from_xml(path))
+def GetUniqueTokens(path: str):
+    return set(GetTokensFromXml(path))
 
 
-def get_tokens_from_xml(path: str) -> List[str]:
-    return get_tokens_from_xml_root(parse_xml(path))
+def GetTokensFromXml(path: str) -> List[str]:
+    return GetTokensFromXmlRoot(ParseXml(path))
 
 
-def get_tokens(node: ET.Element) -> List[str]:
+def GetTokens(node: ET.Element) -> List[str]:
     tokens = []
     attrs = []
     for k, v in list(node.attrib.items()):
@@ -117,14 +119,14 @@ def get_tokens(node: ET.Element) -> List[str]:
         tokens.append(n)
         if text:
             if text.lstrip("-").isnumeric():
-                text = str(translate_num(int(text)))
+                text = str(TranslateNum(int(text)))
             tokens.append(text)
     else:
         tokens.append(f"<{node.tag}{attrs} />")
     return tokens
 
 
-def translate_num(num: int):
+def TranslateNum(num: int):
     """Round to nearest power of 2 unless in whitelisted nums.
 
     This prevents an explosion in the number of 'content' tokens.
@@ -140,12 +142,21 @@ def translate_num(num: int):
     return (2 ** round(math.log2(abs(num)))) * sign
 
 
-def keep_element(tag_name: str):
+def KeepElement(tag_name: str):
     return (
         tag_name not in consts.TAG_NAMES_TO_IGNORE
         and tag_name in consts.ALLOWED_TAG_NAMES
     )
 
 
-def keep_attribute(name: str):
+def KeepAttribute(name: str):
     return name not in consts.ATTRIBUTES_TO_IGNORE
+
+
+@contextmanager
+def GetTempDir():
+    temp_dir = tempfile.mkdtemp(prefix="xamil", dir="/tmp")
+    try:
+        yield temp_dir
+    finally:
+        shutil.rmtree(temp_dir)

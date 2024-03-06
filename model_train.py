@@ -22,6 +22,8 @@ data_provider = ModelDataProvider()
 
 
 out_dir = consts.MODEL_DATA_ROOT
+ckpt_path = os.path.join(out_dir, "ckpt.pt")
+device = "cuda" if torch.cuda.is_available() else "cpu"
 eval_interval = 10  # 2000
 log_interval = 1
 eval_iters = 200
@@ -75,8 +77,22 @@ ctx = (
 iter_num = 0
 best_val_loss = 1e9
 
+
 model, config = get_model_and_config()
-model.to("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
+checkpoint = None
+
+# Load previous weights if they exist.
+# TODO: This doesn't work as I'd expect -- it loads the weights seemingly fine
+# but then the loss climbs quite a bit when mfu=100%.
+if os.path.exists(ckpt_path):
+    print("Loading previous checkpoint because it was found.")
+    checkpoint = torch.load(ckpt_path, map_location=device)
+    state_dict = checkpoint["model"]
+    model.load_state_dict(state_dict)
+    iter_num = checkpoint["iter_num"]
+    best_val_loss = checkpoint["best_val_loss"]
 
 # initialize a GradScaler. If enabled=False scaler is a no-op
 scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
@@ -85,6 +101,10 @@ scaler = torch.cuda.amp.GradScaler(enabled=(dtype == "float16"))
 optimizer = model.configure_optimizers(
     weight_decay, learning_rate, (beta1, beta2), device_type
 )
+
+if os.path.exists(ckpt_path):
+    optimizer.load_state_dict(checkpoint["optimizer"])
+checkpoint = None
 
 
 # helps estimate an arbitrarily accurate loss over either split using many batches
@@ -150,8 +170,8 @@ while True:
                     "best_val_loss": best_val_loss,
                     "config": config,
                 }
-                print(f"saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, "ckpt.pt"))
+                print(f"saving checkpoint to {ckpt_path}")
+                torch.save(checkpoint, ckpt_path)
     if iter_num == 0 and eval_only:
         break
 

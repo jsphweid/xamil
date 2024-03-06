@@ -16,19 +16,31 @@ NUM_EMBD = 768
 # NUM_HEAD = 4
 # NUM_EMBD = 64
 
-BATCH_SIZE = 12
+BATCH_SIZE = 8
 
 TRAINING_DATA_ROOT = "training_data_out"
 TRAINING_DATA_NUMS = f"{TRAINING_DATA_ROOT}/nums.bin"
+TRAINING_DATA_BPE_NUMS = f"{TRAINING_DATA_ROOT}/nums_bpe.bin"
 MODEL_DATA_ROOT = "model_data_out"
 MISC_FILES_ROOT = "local"
 TRAINING_FILES_LIST = f"{MISC_FILES_ROOT}/single_staff_files.log"
+
+# The number of tokens we want it have. This would normally be 500-1000 but we
+# can pair tokens ala byte-pair to create more tokens.
+MAX_NUM_DESIRED_TOKENS = 20000
+# We store the sequence of tokens as a packed list of 16-bit integers currently.
+# This means that we can have at most 2**16 tokens.
+assert MAX_NUM_DESIRED_TOKENS < 2**16, "MAX_NUM_DESIRED_TOKENS must be less than 2**16"
 
 ANY_XML_FILE = (".xml", ".musicxml", ".xml.gz", ".musicxml.gz")
 
 # Some parts of data prep are parallelized. This is the number of parallel
 # processes to use. This can scale linearly with the number of cores you have.
+# PARALLELISM = 12
 PARALLELISM = 12
+
+# A special token to separate documents.
+DOC_END_TOKEN = "<|doc_end|>"
 
 # https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/
 # https://www.w3.org/2021/06/musicxml40/container-reference/elements/

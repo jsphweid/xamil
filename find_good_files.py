@@ -7,6 +7,15 @@
 from multiprocessing import Pool, Lock
 import xml.etree.ElementTree as ET
 import argparse
+from absl import app, flags
+
+flags.DEFINE_string(
+    "xml_folder_root",
+    None,
+    "The maximum number of paths to process. If None, all paths will be processed.",
+)
+
+flags.mark_flag_as_required("xml_folder_root")
 
 
 import util
@@ -33,7 +42,7 @@ def has_one_staff(xml: ET.Element):
 
 def write_if_one_staff(path: str):
     try:
-        xml = util.parse_xml(path)
+        xml = util.ParseXml(path)
         if has_one_part(xml) and has_one_staff(xml):
             _WRITE_LOCK.acquire()
             with open(consts.TRAINING_FILES_LIST, "a") as f:
@@ -43,18 +52,17 @@ def write_if_one_staff(path: str):
         pass
 
 
-def run(dir: str):
+def Main(argv):
     # Prepare the output directory.
-    util.ensure_dir_exists(consts.MISC_FILES_ROOT)
-    util.clear_if_exists(consts.TRAINING_FILES_LIST)
+    util.EnsureDirExists(consts.MISC_FILES_ROOT)
+    util.ClearIfExists(consts.TRAINING_FILES_LIST)
 
-    paths = util.get_all_files_in_directory(dir, extensions=consts.ANY_XML_FILE)
+    paths = util.GetAllFilesInDirectory(
+        flags.FLAGS.xml_folder_root, extensions=consts.ANY_XML_FILE
+    )
     with Pool(consts.PARALLELISM) as p:
         p.map(write_if_one_staff, paths)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--xml_folder_root", type=str, required=True)
-    args = parser.parse_args()
-    run(args.xml_folder_root)
+    app.run(Main)
